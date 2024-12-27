@@ -53,6 +53,8 @@ enum Op {
   ADDI_W = 0x02800000,
   ADDI_D = 0x02c00000,
   ANDI = 0x03400000,
+  ORI = 0x03800000,
+  LU12I_W = 0x14000000,
   PCADDI = 0x18000000,
   PCADDU12I = 0x1c000000,
   LD_W = 0x28800000,
@@ -135,6 +137,8 @@ static uint32_t extractBits(uint64_t v, uint32_t begin, uint32_t end) {
 }
 
 static uint32_t getD5(uint64_t v) { return extractBits(v, 4, 0); }
+
+static uint32_t getJ5(uint64_t v) { return extractBits(v, 9, 5); }
 
 static uint32_t setD5k16(uint32_t insn, uint32_t imm) {
   uint32_t immLo = extractBits(imm, 15, 0);
@@ -759,10 +763,10 @@ static bool isPairRelaxable(ArrayRef<Relocation> relocs, size_t i) {
 
 // Relax code sequence.
 // From:
-//   pcalau12i $a0, %pc_hi20(sym)
-//   addi.w/d $a0, $a0, %pc_lo12(sym)
+//   pcalau12i     $a0, %pc_hi20(sym) | %ld_pc_hi20(sym)  | %gd_pc_hi20(sym)
+//   addi.w/d $a0, $a0, %pc_lo12(sym) | %got_pc_lo12(sym) | %got_pc_lo12(sym)
 // To:
-//   pcaddi $a0, %pc_lo12(sym)
+//   pcaddi $a0, %pc_lo12(sym) | %got_pc_lo12(sym) | %got_pc_lo12(sym)
 //
 // From:
 //   pcalau12i $a0, %got_pc_hi20(sym_got)
@@ -776,6 +780,10 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
   if (!((rHi20.type == R_LARCH_PCALA_HI20 &&
          rLo12.type == R_LARCH_PCALA_LO12) ||
         (rHi20.type == R_LARCH_GOT_PC_HI20 &&
+         rLo12.type == R_LARCH_GOT_PC_LO12) ||
+        (rHi20.type == R_LARCH_TLS_GD_PC_HI20 &&
+         rLo12.type == R_LARCH_GOT_PC_LO12) ||
+        (rHi20.type == R_LARCH_TLS_LD_PC_HI20 &&
          rLo12.type == R_LARCH_GOT_PC_LO12)))
     return;
 
@@ -796,6 +804,8 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
   else if (rHi20.expr == RE_LOONGARCH_PAGE_PC ||
            rHi20.expr == RE_LOONGARCH_GOT_PAGE_PC)
     symBase = rHi20.sym->getVA(ctx);
+  else if (rHi20.expr == RE_LOONGARCH_TLSGD_PAGE_PC)
+    symBase = ctx.in.got->getGlobalDynAddr(*rHi20.sym);
   else {
     Err(ctx) << getErrorLoc(ctx, (const uint8_t *)loc) << "unknown expr ("
              << rHi20.expr << ") against symbol " << rHi20.sym
@@ -815,7 +825,12 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
   const uint32_t nextInsn = read32le(sec.content().data() + rLo12.offset);
 
   sec.relaxAux->relocTypes[i] = R_LARCH_RELAX;
-  sec.relaxAux->relocTypes[i + 2] = R_LARCH_PCREL20_S2;
+  if (rHi20.type == R_LARCH_TLS_GD_PC_HI20)
+    sec.relaxAux->relocTypes[i + 2] = R_LARCH_TLS_GD_PCREL20_S2;
+  else if (rHi20.type == R_LARCH_TLS_LD_PC_HI20)
+    sec.relaxAux->relocTypes[i + 2] = R_LARCH_TLS_LD_PCREL20_S2;
+  else
+    sec.relaxAux->relocTypes[i + 2] = R_LARCH_PCREL20_S2;
   sec.relaxAux->writes.push_back(insn(PCADDI, getD5(nextInsn), 0, 0));
   remove = 4;
 }
@@ -848,6 +863,73 @@ static void relaxCall36(Ctx &ctx, const InputSection &sec, size_t i,
     sec.relaxAux->relocTypes[i] = R_LARCH_B26;
     sec.relaxAux->writes.push_back(insn(B, 0, 0, 0));
     remove = 4;
+  }
+}
+
+// Relax code sequence.
+// From:
+//   lu12i.w $rd, %le_hi20_r(sym)
+//   add.w/d $rd, $rd, $tp, %le_add_r(sym)
+//   addi/ld/st.w/d $rd, $rd, %le_lo12_r(sym)
+// To:
+//   addi/ld/st.w/d $rd, $tp, %le_lo12_r(sym)
+static void relaxTlsLe(Ctx &ctx, const InputSection &sec, size_t i,
+                       uint64_t loc, Relocation &r, uint32_t &remove) {
+  uint64_t val = r.sym->getVA(ctx, r.addend);
+  // Check if the val exceeds the range of addi/ld/st.
+  if (!isInt<12>(val))
+    return;
+  uint32_t currInsn = read32le(sec.content().data() + r.offset);
+  switch (r.type) {
+  case R_LARCH_TLS_LE_HI20_R:
+  case R_LARCH_TLS_LE_ADD_R:
+    sec.relaxAux->relocTypes[i] = R_LARCH_RELAX;
+    remove = 4;
+    break;
+  case R_LARCH_TLS_LE_LO12_R:
+    currInsn =
+        insn(extractBits(currInsn, 31, 22) << 22, getD5(currInsn), R_TP, 0);
+    sec.relaxAux->writes.push_back(currInsn);
+    sec.relaxAux->relocTypes[i] = R_LARCH_TLS_LE_LO12_R;
+    break;
+  }
+}
+
+// Relax code sequence. IE ==> LE
+// From:
+//   pcalau12i $a0, %ie_pc_hi20(sym_ie)
+//   ld.d $a0, $a0, %ie_pc_lo12(sym_ie)
+// To:
+//   lu12i.w $a0, %ie_pc_hi20(sym_ie)   # hi20 != 0
+//   ori $a0, $a0, %ie_pc_lo(sym_ie)
+static void relaxTlsIe(Ctx &ctx, const InputSection &sec, size_t i,
+                       uint64_t loc, Relocation &r, uint32_t &remove) {
+  uint64_t val = r.sym->getVA(ctx, r.addend);
+  // Check if the val exceeds the range.
+  if (!isUInt<32>(val))
+    return;
+
+  bool isUInt12 = false;
+  if (isUInt<12>(val))
+    isUInt12 = true;
+  uint32_t currInsn = read32le(sec.content().data() + r.offset);
+  switch (r.type) {
+  case R_LARCH_TLS_IE_PC_HI20:
+    if (isUInt12) {
+      sec.relaxAux->relocTypes[i] = R_LARCH_RELAX;
+      remove = 4;
+    } else {
+      currInsn = insn(LU12I_W, getD5(currInsn), 0, 0);
+      sec.relaxAux->writes.push_back(currInsn);
+      sec.relaxAux->relocTypes[i] = R_LARCH_TLS_IE_PC_HI20;
+    }
+    break;
+  case R_LARCH_TLS_IE_PC_LO12:
+    uint32_t rj = isUInt12 ? R_ZERO : getJ5(currInsn);
+    currInsn = insn(ORI, getD5(currInsn), rj, 0);
+    sec.relaxAux->writes.push_back(currInsn);
+    sec.relaxAux->relocTypes[i] = R_LARCH_TLS_IE_PC_LO12;
+    break;
   }
 }
 
@@ -891,6 +973,8 @@ static bool relax(Ctx &ctx, InputSection &sec) {
     }
     case R_LARCH_PCALA_HI20:
     case R_LARCH_GOT_PC_HI20:
+    case R_LARCH_TLS_GD_PC_HI20:
+    case R_LARCH_TLS_LD_PC_HI20:
       // The overflow check for i+2 will be carried out in isPairRelaxable.
       if (isPairRelaxable(relocs, i))
         relaxPCHi20Lo12(ctx, sec, i, loc, r, relocs[i + 2], remove);
@@ -898,6 +982,17 @@ static bool relax(Ctx &ctx, InputSection &sec) {
     case R_LARCH_CALL36:
       if (relaxable(relocs, i))
         relaxCall36(ctx, sec, i, loc, r, remove);
+      break;
+    case R_LARCH_TLS_LE_HI20_R:
+    case R_LARCH_TLS_LE_ADD_R:
+    case R_LARCH_TLS_LE_LO12_R:
+      if (relaxable(relocs, i))
+        relaxTlsLe(ctx, sec, i, loc, r, remove);
+      break;
+    case R_LARCH_TLS_IE_PC_HI20:
+    case R_LARCH_TLS_IE_PC_LO12:
+      if (relaxable(relocs, i))
+        relaxTlsIe(ctx, sec, i, loc, r, remove);
       break;
     }
 
@@ -1003,8 +1098,26 @@ void LoongArch::finalizeRelax(int passes) const {
             r.expr = r.sym->hasFlag(NEEDS_PLT) ? R_PLT_PC : R_PC;
             break;
           case R_LARCH_B26:
+          case R_LARCH_TLS_LE_LO12_R:
             skip = 4;
             write32le(p, aux.writes[writesIdx++]);
+            break;
+          case R_LARCH_TLS_IE_PC_HI20:
+          case R_LARCH_TLS_IE_PC_LO12:
+            skip = 4;
+            write32le(p, aux.writes[writesIdx++]);
+            r.expr = R_TPREL;
+            break;
+          case R_LARCH_TLS_GD_PCREL20_S2:
+            // Note: R_LARCH_TLS_LD_PCREL20_S2 must also use R_TLSGD_PC instead
+            // of R_TLSLD_PC because the processing of relocation
+            // R_LARCH_TLS_LD_PC_HI20 is the same as R_LARCH_TLS_GD_PC_HI20. If
+            // not, the value obtained from getRelocTargetVA will be unexpected
+            // and lead to error.
+          case R_LARCH_TLS_LD_PCREL20_S2:
+            skip = 4;
+            write32le(p, aux.writes[writesIdx++]);
+            r.expr = R_TLSGD_PC;
             break;
           default:
             llvm_unreachable("unsupported type");
