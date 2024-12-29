@@ -1371,14 +1371,15 @@ void LoongArch::finalizeRelax(int passes) const {
             r.expr = R_TPREL;
             break;
           case R_LARCH_TLS_GD_PCREL20_S2:
-            skip = 4;
-            write32le(p, aux.writes[writesIdx++]);
-            r.expr = R_TLSGD_PC;
-            break;
+            // Note: R_LARCH_TLS_LD_PCREL20_S2 must also use R_TLSGD_PC instead
+            // of R_TLSLD_PC because the processing of relocation
+            // R_LARCH_TLS_LD_PC_HI20 is the same as R_LARCH_TLS_GD_PC_HI20. If
+            // not, the value obtained from getRelocTargetVA will be unexpected
+            // and lead to error.
           case R_LARCH_TLS_LD_PCREL20_S2:
             skip = 4;
             write32le(p, aux.writes[writesIdx++]);
-            r.expr = R_TLSLD_PC;
+            r.expr = R_TLSGD_PC;
             break;
           default:
             llvm_unreachable("unsupported type");
