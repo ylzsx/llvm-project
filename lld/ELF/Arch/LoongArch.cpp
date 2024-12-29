@@ -795,8 +795,10 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
     return;
 
   // GOT references to absolute symbols can't be relaxed to use pcaddi in
-  // position-independent code, and skip undefined, preemptible and
-  // STT_GNU_IFUNC symbols, because these symbols may be resolve in runtime.
+  // position-independent code, because these instructions produce a relative
+  // address.
+  // Meanwhile skip undefined, preemptible and STT_GNU_IFUNC symbols, because
+  // these symbols may be resolve in runtime.
   if (rLo12.type == R_LARCH_GOT_PC_LO12 &&
       (!rLo12.sym->isDefined() || rLo12.sym->isPreemptible ||
        rLo12.sym->isGnuIFunc() ||
