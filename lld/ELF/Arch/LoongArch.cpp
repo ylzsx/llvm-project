@@ -904,6 +904,9 @@ static void relaxTlsLe(Ctx &ctx, const InputSection &sec, size_t i,
 //   ori $a0, $a0, %ie_pc_lo(sym_ie)
 static void relaxTlsIe(Ctx &ctx, const InputSection &sec, size_t i,
                        uint64_t loc, Relocation &r, uint32_t &remove) {
+  if (!r.sym->isDefined() || r.sym->isPreemptible || ctx.arg.shared)
+    return;
+
   uint64_t val = r.sym->getVA(ctx, r.addend);
   // Check if the val exceeds the range.
   if (!isUInt<32>(val))
