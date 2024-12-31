@@ -780,7 +780,9 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
         (rHi20.type == R_LARCH_TLS_GD_PC_HI20 &&
          rLo12.type == R_LARCH_GOT_PC_LO12) ||
         (rHi20.type == R_LARCH_TLS_LD_PC_HI20 &&
-         rLo12.type == R_LARCH_GOT_PC_LO12)))
+         rLo12.type == R_LARCH_GOT_PC_LO12) ||
+        (rHi20.type == R_LARCH_TLS_DESC_PC_HI20 &&
+         rLo12.type == R_LARCH_TLS_DESC_PC_LO12)))
     return;
 
   // GOT references to absolute symbols can't be relaxed to use pcaddi in
@@ -802,6 +804,8 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
     symBase = rHi20.sym->getVA(ctx);
   else if (rHi20.expr == RE_LOONGARCH_TLSGD_PAGE_PC)
     symBase = ctx.in.got->getGlobalDynAddr(*rHi20.sym);
+  else if (rHi20.expr == RE_LOONGARCH_TLSDESC_PAGE_PC)
+    symBase = ctx.in.got->getTlsDescAddr(*rHi20.sym);
   else {
     Err(ctx) << getErrorLoc(ctx, (const uint8_t *)loc) << "unknown expr ("
              << rHi20.expr << ") against symbol " << rHi20.sym
@@ -835,6 +839,8 @@ static void relaxPCHi20Lo12(Ctx &ctx, const InputSection &sec, size_t i,
     sec.relaxAux->relocTypes[i + 2] = R_LARCH_TLS_GD_PCREL20_S2;
   else if (rHi20.type == R_LARCH_TLS_LD_PC_HI20)
     sec.relaxAux->relocTypes[i + 2] = R_LARCH_TLS_LD_PCREL20_S2;
+  else if (rHi20.type == R_LARCH_TLS_DESC_PC_HI20)
+    sec.relaxAux->relocTypes[i + 2] = R_LARCH_TLS_DESC_PCREL20_S2;
   else
     sec.relaxAux->relocTypes[i + 2] = R_LARCH_PCREL20_S2;
   sec.relaxAux->writes.push_back(insn(PCADDI, getD5(nextInsn), 0, 0));
@@ -901,6 +907,33 @@ static void relaxTlsLe(Ctx &ctx, const InputSection &sec, size_t i,
   }
 }
 
+// Relax TLSDESC code sequence. In LoongArch, the conversion of TLSDESC GD/LD to
+// LE/IE is closely tied to relaxation, similar to how GCC handles it. (Due to
+// the lack of an efficient way for handling conversions in the extreme code
+// model and the difficulty in determining whether the extreme code model is
+// being used in handleTlsRelocation, this approach may seem like a workaround).
+// Consequently, the resulting code sequence depends on whether the conversion
+// to LE/IE is performed.
+//
+// Original code sequence:
+//  * pcalau12i  $a0, %desc_pc_hi20(sym_desc)
+//  * addi.d     $a0, $a0, %desc_pc_lo12(sym_desc)
+//  * ld.d       $ra, $a0, %desc_ld(sym_desc)
+//  * jirl       $ra, $ra, %desc_call(sym_desc)
+//
+// Cannot convert to LE/IE, but relax:
+//  * pcaddi     $a0, %desc_pcrel_20(sym_desc)
+//  * ld.d       $ra, $a0, %desc_ld(sym_desc)
+//  * jirl       $ra, $ra, %desc_call(sym_desc)
+//
+// FIXME: Implement TLSDESC GD/LD to LE/IE.
+static void relaxTlsdesc(Ctx &ctx, const InputSection &sec, size_t i,
+                         uint64_t loc, Relocation &rHi20, Relocation &rLo12,
+                         uint32_t &remove) {
+  if (ctx.arg.shared && rHi20.type == R_LARCH_TLS_DESC_PC_HI20)
+    return relaxPCHi20Lo12(ctx, sec, i, loc, rHi20, rLo12, remove);
+}
+
 static bool relax(Ctx &ctx, InputSection &sec) {
   const uint64_t secAddr = sec.getVA();
   const MutableArrayRef<Relocation> relocs = sec.relocs();
@@ -956,6 +989,10 @@ static bool relax(Ctx &ctx, InputSection &sec) {
     case R_LARCH_TLS_LE_LO12_R:
       if (relaxable(relocs, i))
         relaxTlsLe(ctx, sec, i, loc, r, remove);
+      break;
+    case R_LARCH_TLS_DESC_PC_HI20:
+      if (isPairRelaxable(relocs, i))
+        relaxTlsdesc(ctx, sec, i, loc, r, relocs[i + 2], remove);
       break;
     }
 
@@ -1075,6 +1112,11 @@ void LoongArch::finalizeRelax(int passes) const {
             skip = 4;
             write32le(p, aux.writes[writesIdx++]);
             r.expr = R_TLSGD_PC;
+            break;
+          case R_LARCH_TLS_DESC_PCREL20_S2:
+            skip = 4;
+            write32le(p, aux.writes[writesIdx++]);
+            r.expr = R_TLSDESC_PC;
             break;
           default:
             llvm_unreachable("unsupported type");
