@@ -2,29 +2,39 @@
 # RUN: rm -rf %t && split-file %s %t
 
 # RUN: llvm-mc --filetype=obj --triple=loongarch32 %t/32.s -o %t/32.o
+# RUN: llvm-mc --filetype=obj --triple=loongarch32 -mattr=+relax %t/32.s -o %t/32.relax.o
 # RUN: llvm-mc --filetype=obj --triple=loongarch64 %t/64.s -o %t/64.o
+# RUN: llvm-mc --filetype=obj --triple=loongarch64 -mattr=+relax %t/64.s -o %t/64.relax.o
 
 ## LA32 IE
 # RUN: ld.lld -shared %t/32.o -o %t/32.so
 # RUN: llvm-readobj -r -d %t/32.so | FileCheck --check-prefix=IE32-REL %s
 # RUN: llvm-objdump -d --no-show-raw-insn %t/32.so | FileCheck --check-prefixes=IE32 %s
+# RUN: ld.lld -shared %t/32.relax.o -o %t/32.relax.so
+# RUN: llvm-objdump -d --no-show-raw-insn %t/32.relax.so | FileCheck --check-prefixes=IE32 %s
 
 ## LA32 IE -> LE
 # RUN: ld.lld %t/32.o -o %t/32
 # RUN: llvm-readelf -r %t/32 | FileCheck --check-prefix=NOREL %s
 # RUN: llvm-readelf -x .got %t/32 | FileCheck --check-prefix=LE32-GOT %s
 # RUN: llvm-objdump -d --no-show-raw-insn %t/32 | FileCheck --check-prefixes=LE32 %s
+# RUN: ld.lld %t/32.relax.o -o %t/32.relax
+# RUN: llvm-objdump -d --no-show-raw-insn %t/32.relax | FileCheck --check-prefixes=LE32-RELAX %s
 
 ## LA64 IE
 # RUN: ld.lld -shared %t/64.o -o %t/64.so
 # RUN: llvm-readobj -r -d %t/64.so | FileCheck --check-prefix=IE64-REL %s
 # RUN: llvm-objdump -d --no-show-raw-insn %t/64.so | FileCheck --check-prefixes=IE64 %s
+# RUN: ld.lld -shared %t/64.relax.o -o %t/64.relax.so
+# RUN: llvm-objdump -d --no-show-raw-insn %t/64.relax.so | FileCheck --check-prefixes=IE64 %s
 
 ## LA64 IE -> LE
 # RUN: ld.lld %t/64.o -o %t/64
 # RUN: llvm-readelf -r %t/64 | FileCheck --check-prefix=NOREL %s
 # RUN: llvm-readelf -x .got %t/64 | FileCheck --check-prefix=LE64-GOT %s
 # RUN: llvm-objdump -d --no-show-raw-insn %t/64 | FileCheck --check-prefixes=LE64 %s
+# RUN: ld.lld %t/64.relax.o -o %t/64.relax
+# RUN: llvm-objdump -d --no-show-raw-insn %t/64.relax | FileCheck --check-prefixes=LE64-RELAX %s
 
 # IE32-REL:      FLAGS STATIC_TLS
 # IE32-REL:      .rela.dyn {
@@ -106,6 +116,30 @@
 # LE64-NEXT: 201e0: pcalau12i $a6, 16
 # LE64-NEXT:        ld.d $a6, $a6, 512
 # LE64-NEXT:        add.d $a6, $a6, $tp
+
+## LA32:
+# a@tprel = st_value(a) = 0x8
+# LE32-RELAX:      20114: ori $a4, $zero, 8
+# LE32-RELAX-NEXT:        add.w $a4, $a4, $tp
+# b@tprel = st_value(b) = 0xc
+# LE32-RELAX-NEXT: 2011c: ori $a5, $zero, 12
+# LE32-RELAX-NEXT:        add.w $a5, $a5, $tp
+# c@tprel = st_value(c) = 0x1000
+# LE32-RELAX-NEXT: 20124: lu12i.w $a6, 1
+# LE32-RELAX-NEXT:        ori $a6, $a6, 0
+# LE32-RELAX-NEXT:        add.w $a6, $a6, $tp
+
+## LA64:
+# a@tprel = st_value(a) = 0x8
+# LE64-RELAX:      201c8: ori $a4, $zero, 8
+# LE64-RELAX-NEXT:        add.d $a4, $a4, $tp
+# b@tprel = st_value(b) = 0xc
+# LE64-RELAX-NEXT: 201d0: ori $a5, $zero, 12
+# LE64-RELAX-NEXT:        add.d $a5, $a5, $tp
+# c@tprel = st_value(c) = 0x1000
+# LE64-RELAX-NEXT: 201d8: lu12i.w $a6, 1
+# LE64-RELAX-NEXT:        ori $a6, $a6, 0
+# LE64-RELAX-NEXT:        add.d $a6, $a6, $tp
 
 #--- 32.s
 la.tls.ie $a4, a
