@@ -924,14 +924,14 @@ static void relaxTlsIe(Ctx &ctx, const InputSection &sec, size_t i,
     } else {
       currInsn = insn(LU12I_W, getD5(currInsn), 0, 0);
       sec.relaxAux->writes.push_back(currInsn);
-      sec.relaxAux->relocTypes[i] = R_LARCH_TLS_IE_PC_HI20;
+      sec.relaxAux->relocTypes[i] = R_LARCH_TLS_LE_HI20;
     }
     break;
   case R_LARCH_TLS_IE_PC_LO12:
     uint32_t rj = isUInt12 ? R_ZERO : getJ5(currInsn);
     currInsn = insn(ORI, getD5(currInsn), rj, 0);
     sec.relaxAux->writes.push_back(currInsn);
-    sec.relaxAux->relocTypes[i] = R_LARCH_TLS_IE_PC_LO12;
+    sec.relaxAux->relocTypes[i] = R_LARCH_TLS_LE_LO12;
     break;
   }
 }
@@ -1105,8 +1105,8 @@ void LoongArch::finalizeRelax(int passes) const {
             skip = 4;
             write32le(p, aux.writes[writesIdx++]);
             break;
-          case R_LARCH_TLS_IE_PC_HI20:
-          case R_LARCH_TLS_IE_PC_LO12:
+          case R_LARCH_TLS_LE_HI20:
+          case R_LARCH_TLS_LE_LO12:
             skip = 4;
             write32le(p, aux.writes[writesIdx++]);
             r.expr = R_TPREL;

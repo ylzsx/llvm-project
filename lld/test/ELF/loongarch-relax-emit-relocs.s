@@ -34,7 +34,7 @@
 # RELAX-NEXT:   ori       $a0, $zero, 0
 # RELAX-NEXT:     R_LARCH_RELAX a
 # RELAX-NEXT:     R_LARCH_RELAX *ABS*
-# RELAX-NEXT:     R_LARCH_TLS_IE_PC_LO12 a
+# RELAX-NEXT:     R_LARCH_TLS_LE_LO12 a
 # RELAX-NEXT:     R_LARCH_RELAX *ABS*
 # RELAX-NEXT:   pcaddi    $a0, {{[0-9]+}}
 # RELAX-NEXT:     R_LARCH_RELAX a
