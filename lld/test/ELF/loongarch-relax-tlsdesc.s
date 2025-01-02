@@ -65,78 +65,70 @@
 # GD64-NEXT:          add.d   $a4, $a0, $tp
 
 # LE64-RELA:      .rela.dyn {
-# LE64-RELA-NEXT:   0x30278 R_LARCH_TLS_DESC64 - 0x8
-# LE64-RELA-NEXT:   0x30288 R_LARCH_TLS_DESC64 - 0x800
-# LE64-RELA-NEXT:   0x30298 R_LARCH_TLS_DESC64 - 0x1000
-# LE64-RELA-NEXT:   0x302A8 R_LARCH_TLS_DESC64 - 0x7FF
+# LE64-RELA-NEXT:   0x30268 R_LARCH_TLS_DESC64 - 0x8
+# LE64-RELA-NEXT:   0x30278 R_LARCH_TLS_DESC64 - 0x800
+# LE64-RELA-NEXT:   0x30288 R_LARCH_TLS_DESC64 - 0x1000
+# LE64-RELA-NEXT:   0x30298 R_LARCH_TLS_DESC64 - 0x7FF
 # LE64-RELA-NEXT: }
 # LE64-RELA:      Hex dump of section '.got':
+# LE64-RELA-NEXT: 0x00030268 00000000 00000000 00000000 00000000 .
 # LE64-RELA-NEXT: 0x00030278 00000000 00000000 00000000 00000000 .
 # LE64-RELA-NEXT: 0x00030288 00000000 00000000 00000000 00000000 .
 # LE64-RELA-NEXT: 0x00030298 00000000 00000000 00000000 00000000 .
-# LE64-RELA-NEXT: 0x000302a8 00000000 00000000 00000000 00000000 .
 
 # LE64-LABEL: <.text>:
-## &.got[a]-. = 0x30278 - 0x20228: 0x10 pages, page offset 0x278
-# LE64-NEXT:   20228: pcalau12i $a0, 16
-# LE64-NEXT:          addi.d    $a0, $a0, 632
+## &.got[a]-. = 0x30268 - 0x20228 = 16400<<2
+# LE64-NEXT:   20228: pcaddi    $a0, 16400
 # LE64-NEXT:          ld.d      $ra, $a0, 0
 # LE64-NEXT:          jirl      $ra, $ra, 0
 # LE64-NEXT:          add.d     $a1, $a0, $tp
-## &.got[b]-. = 0x302a8 - 0x2023c: 0x10 pages, page offset 0x2a8
-# LE64-NEXT:   2023c: pcalau12i $a0, 16
-# LE64-NEXT:          addi.d    $a0, $a0, 680
+## &.got[b]-. = 0x30298 - 0x20238 = 16408<<2
+# LE64-NEXT:   20238: pcaddi    $a0, 16408
 # LE64-NEXT:          ld.d      $ra, $a0, 0
 # LE64-NEXT:          jirl      $ra, $ra, 0
 # LE64-NEXT:          add.d     $a2, $a0, $tp
-## &.got[c]-. = 0x30288 - 0x20250: 0x10 pages, page offset 0x288
-# LE64-NEXT:   20250: pcalau12i $a0, 16
-# LE64-NEXT:          addi.d    $a0, $a0, 648
+## &.got[c]-. = 0x30278 - 0x20248 = 16396<<2
+# LE64-NEXT:   20248: pcaddi    $a0, 16396
 # LE64-NEXT:          ld.d      $ra, $a0, 0
 # LE64-NEXT:          jirl      $ra, $ra, 0
 # LE64-NEXT:          add.d     $a3, $a0, $tp
-## &.got[d]-. = 0x30298 - 0x20264: 0x10 pages, page offset 0x298
-# LE64-NEXT:   20264: pcalau12i $a0, 16
-# LE64-NEXT:          addi.d    $a0, $a0, 664
+## &.got[d]-. = 0x30288 - 0x20258 = 16396<<2
+# LE64-NEXT:   20258: pcaddi    $a0, 16396
 # LE64-NEXT:          ld.d      $ra, $a0, 0
 # LE64-NEXT:          jirl      $ra, $ra, 0
 # LE64-NEXT:          add.d     $a4, $a0, $tp
 
 # IE64-RELA:      .rela.dyn {
-# IE64-RELA-NEXT:   0x30428 R_LARCH_TLS_DESC64 - 0x8
-# IE64-RELA-NEXT:   0x30458 R_LARCH_TLS_DESC64 - 0x7FF
-# IE64-RELA-NEXT:   0x30438 R_LARCH_TLS_DESC64 c 0x0
-# IE64-RELA-NEXT:   0x30448 R_LARCH_TLS_DESC64 d 0x0
+# IE64-RELA-NEXT:   0x30418 R_LARCH_TLS_DESC64 - 0x8
+# IE64-RELA-NEXT:   0x30448 R_LARCH_TLS_DESC64 - 0x7FF
+# IE64-RELA-NEXT:   0x30428 R_LARCH_TLS_DESC64 c 0x0
+# IE64-RELA-NEXT:   0x30438 R_LARCH_TLS_DESC64 d 0x0
 # IE64-RELA-NEXT: }
 # IE64-RELA:      Hex dump of section '.got':
+# IE64-RELA-NEXT: 0x00030418 00000000 00000000 00000000 00000000 .
 # IE64-RELA-NEXT: 0x00030428 00000000 00000000 00000000 00000000 .
 # IE64-RELA-NEXT: 0x00030438 00000000 00000000 00000000 00000000 .
 # IE64-RELA-NEXT: 0x00030448 00000000 00000000 00000000 00000000 .
-# IE64-RELA-NEXT: 0x00030458 00000000 00000000 00000000 00000000 .
 
 ## a and b are optimized to use LE. c and d are optimized to IE.
 # IE64-LABEL: <.text>:
-## &.got[a]-. = 0x30428 - 0x202f8: 0x10 pages, page offset 0x428
-# IE64-NEXT:   202f8: pcalau12i $a0, 16
-# IE64-NEXT:          addi.d    $a0, $a0, 1064
+## &.got[a]-. = 0x30418 - 0x202f8 = 16456<<2
+# IE64-NEXT:   202f8: pcaddi    $a0, 16456
 # IE64-NEXT:          ld.d      $ra, $a0, 0
 # IE64-NEXT:          jirl      $ra, $ra, 0
 # IE64-NEXT:          add.d     $a1, $a0, $tp
-## &.got[b]-. = 0x30458 - 0x2030c: 0x10 pages, page offset 0x458
-# IE64-NEXT:   2030c: pcalau12i $a0, 16
-# IE64-NEXT:          addi.d    $a0, $a0, 1112
+## &.got[b]-. = 0x30448 - 0x20308 = 16464<<2
+# IE64-NEXT:   20308: pcaddi    $a0, 16464
 # IE64-NEXT:          ld.d      $ra, $a0, 0
 # IE64-NEXT:          jirl      $ra, $ra, 0
 # IE64-NEXT:          add.d     $a2, $a0, $tp
-## &.got[c]-. = 0x30438 - 0x20320: 0x10 pages, page offset 0x438
-# IE64-NEXT:   20320: pcalau12i $a0, 16
-# IE64-NEXT:          addi.d    $a0, $a0, 1080
+## &.got[c]-. = 0x30428 - 0x20318 = 16452<<2
+# IE64-NEXT:   20318: pcaddi    $a0, 16452
 # IE64-NEXT:          ld.d      $ra, $a0, 0
 # IE64-NEXT:          jirl      $ra, $ra, 0
 # IE64-NEXT:          add.d     $a3, $a0, $tp
-## &.got[d]-. = 0x30448 - 0x20334: 0x10 pages, page offset 0x448
-# IE64-NEXT:   20334: pcalau12i $a0, 16
-# IE64-NEXT:          addi.d    $a0, $a0, 1096
+## &.got[d]-. = 0x30438 - 0x20328 = 16452<<2
+# IE64-NEXT:   20328: pcaddi    $a0, 16452
 # IE64-NEXT:          ld.d      $ra, $a0, 0
 # IE64-NEXT:          jirl      $ra, $ra, 0
 # IE64-NEXT:          add.d     $a4, $a0, $tp
