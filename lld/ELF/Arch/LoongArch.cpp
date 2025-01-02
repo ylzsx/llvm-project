@@ -1055,12 +1055,6 @@ void LoongArch::finalizeRelax(int passes) const {
             skip = 4;
             write32le(p, aux.writes[writesIdx++]);
             break;
-          case R_LARCH_TLS_IE_PC_HI20:
-          case R_LARCH_TLS_IE_PC_LO12:
-            skip = 4;
-            write32le(p, aux.writes[writesIdx++]);
-            r.expr = R_TPREL;
-            break;
           case R_LARCH_TLS_GD_PCREL20_S2:
             // Note: R_LARCH_TLS_LD_PCREL20_S2 must also use R_TLSGD_PC instead
             // of R_TLSLD_PC because the processing of relocation
