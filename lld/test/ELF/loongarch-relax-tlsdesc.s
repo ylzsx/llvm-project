@@ -88,7 +88,6 @@
 # LE64-NEXT:          add.d   $a1, $a0, $tp
 
 ## b@tprel = 0x7ff
-## R_LARCH_RELAX does not appear in pairs. No relaxation.
 # LE64:        2016c: nop
 # LE64-NEXT:            R_LARCH_TLS_DESC_PC_HI20 b
 # LE64-NEXT:            R_LARCH_RELAX *ABS*
@@ -136,7 +135,6 @@
 # LE64-NORELAX-NEXT:          add.d   $a1, $a0, $tp
 
 ## b@tprel = 0x7ff
-## R_LARCH_RELAX does not appear in pairs. No relaxation.
 # LE64-NORELAX:        2016c: nop
 # LE64-NORELAX-NEXT:          nop
 # LE64-NORELAX-NEXT:          nop
@@ -187,7 +185,6 @@
 # IE64-NEXT:          add.d   $a1, $a0, $tp
 
 ## b@tprel = 0x7ff
-## R_LARCH_RELAX does not appear in pairs. No relaxation.
 # IE64:        202dc: nop
 # IE64-NEXT:            R_LARCH_TLS_DESC_PC_HI20 b
 # IE64-NEXT:            R_LARCH_RELAX *ABS*
@@ -237,7 +234,6 @@
 # IE64-NORELAX-NEXT:          add.d   $a1, $a0, $tp
 
 ## b@tprel = 0x7ff
-## R_LARCH_RELAX does not appear in pairs. No relaxation.
 # IE64-NORELAX:        202dc: nop
 # IE64-NORELAX-NEXT:          nop
 # IE64-NORELAX-NEXT:          nop
@@ -266,7 +262,7 @@
 la.tls.desc $a0, a
 add.d $a1, $a0, $tp
 
-# ADDI.D does not have R_LARCH_RELAX. No relaxation.
+# ADDI.D does not have R_LARCH_RELAX. No relaxation when it is not optimized to IE/LE (--shared).
 pcalau12i $a0, %desc_pc_hi20(b)
 .reloc .-4, R_LARCH_RELAX, 0
 addi.d $a0, $a0, %desc_pc_lo12(b)
