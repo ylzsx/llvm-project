@@ -4,7 +4,7 @@
 # RUN: llvm-mc --filetype=obj --triple=loongarch64 -mattr=+relax %s -o %t.o
 
 ## Also check --emit-relocs.
-# RUN: ld.lld --emit-relocs %t.o -o %t
+# RUN: ld.lld --emit-relocs --relax %t.o -o %t
 # RUN: llvm-readelf -x .got %t 2>&1 | FileCheck --check-prefix=LE-GOT %s
 # RUN: llvm-objdump -dr --no-show-raw-insn %t | FileCheck --check-prefixes=LER %s
 
