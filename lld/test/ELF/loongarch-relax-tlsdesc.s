@@ -2,28 +2,28 @@
 # RUN: rm -rf %t && split-file %s %t && cd %t
 # RUN: llvm-mc -filetype=obj -triple=loongarch64 -mattr=+relax a.s -o a.64.o
 # RUN: llvm-mc -filetype=obj -triple=loongarch64 -mattr=+relax c.s -o c.64.o
-# RUN: ld.lld -shared -soname=c.64.so c.64.o -o c.64.so
+# RUN: ld.lld --relax -shared -soname=c.64.so c.64.o -o c.64.so
 
 ## Test the TLSDESC relaxation.
-# RUN: ld.lld -shared -z now a.64.o c.64.o -o a.64.so
+# RUN: ld.lld --relax -shared -z now a.64.o c.64.o -o a.64.so
 # RUN: llvm-readobj -r -x .got a.64.so | FileCheck --check-prefix=GD64-RELA %s
 # RUN: llvm-objdump --no-show-raw-insn -dr -h a.64.so | FileCheck %s --check-prefix=GD64
 
 ## FIXME: The transition frome TLSDESC to IE/LE has not yet been implemented.
 ## Keep the dynamic relocations and hand them over to dynamic linker.
 
-# RUN: ld.lld -e 0 -z now a.64.o c.64.o -o a.64.le
+# RUN: ld.lld --relax -e 0 -z now a.64.o c.64.o -o a.64.le
 # RUN: llvm-readobj -r -x .got a.64.le | FileCheck --check-prefix=LE64-RELA %s
 # RUN: llvm-objdump --no-show-raw-insn -d -h a.64.le | FileCheck %s --check-prefix=LE64
 
-# RUN: ld.lld -e 0 -z now --no-relax a.64.o c.64.o -o a.64.le.norelax
+# RUN: ld.lld --no-relax -e 0 -z now a.64.o c.64.o -o a.64.le.norelax
 # RUN: llvm-objdump --no-show-raw-insn -d -h a.64.le.norelax | FileCheck %s --check-prefix=LE64-NORELAX
 
-# RUN: ld.lld -e 0 -z now a.64.o c.64.so -o a.64.ie
+# RUN: ld.lld --relax -e 0 -z now a.64.o c.64.so -o a.64.ie
 # RUN: llvm-readobj -r -x .got a.64.ie | FileCheck --check-prefix=IE64-RELA %s
 # RUN: llvm-objdump --no-show-raw-insn -d -h a.64.ie | FileCheck %s --check-prefix=IE64
 
-# RUN: ld.lld -e 0 -z now --no-relax a.64.o c.64.so -o a.64.ie.norelax
+# RUN: ld.lld --no-relax -e 0 -z now a.64.o c.64.so -o a.64.ie.norelax
 # RUN: llvm-objdump --no-show-raw-insn -d -h a.64.ie.norelax | FileCheck %s --check-prefix=IE64-NORELAX
 
 # GD64-RELA:      .rela.dyn {
